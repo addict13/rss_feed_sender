@@ -9,7 +9,6 @@ import os
 import re
 import smtplib
 import feedparser
-import anthropic
 import requests
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -103,48 +102,25 @@ def parse_feed(feed_info: dict) -> list[dict]:
     return articles
 
 
-# ── Claude AI 분석 ────────────────────────────────────────────────────────────
+# ── 기사 포맷 ─────────────────────────────────────────────────────────────────
 
-def analyze_article(client: anthropic.Anthropic, article: dict) -> dict:
-    """Claude로 기사를 분석하고 요약을 생성합니다."""
-    print(f"  📖 분석 중: {article['title'][:60]}...")
+def analyze_article(article: dict) -> dict:
+    """RSS 피드 요약 및 본문 미리보기를 포맷합니다."""
+    print(f"  📖 수집 중: {article['title'][:60]}...")
     content = fetch_article_content(article["url"])
 
-    prompt = f"""다음 기사를 한국어로 분석해주세요.
+    rss_summary = article.get("summary", "").strip()
+    if rss_summary:
+        soup = BeautifulSoup(rss_summary, "html.parser")
+        rss_summary = soup.get_text(separator=" ", strip=True)
 
-제목: {article['title']}
-출처: {article['feed_name']}
-URL: {article['url']}
+    parts = []
+    if rss_summary:
+        parts.append(f"## 피드 요약\n{rss_summary[:600]}")
+    if content and not content.startswith("[본문 수집 실패"):
+        parts.append(f"## 본문 미리보기\n{content[:800]}")
 
-[기사 본문]
-{content}
-
-아래 형식으로 JSON 없이 명확하게 답변해주세요:
-
-## 핵심 요약
-(3-4문장으로 기사의 핵심 내용)
-
-## 주요 포인트
-- 포인트 1
-- 포인트 2
-- 포인트 3
-
-## 중요도
-높음 / 중간 / 낮음 중 하나와 그 이유 한 줄
-
-## 한 줄 인사이트
-이 기사에서 얻을 수 있는 가장 중요한 인사이트를 한 문장으로
-"""
-
-    try:
-        message = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        analysis = message.content[0].text
-    except Exception as e:
-        analysis = f"분석 실패: {e}"
+    analysis = "\n\n".join(parts) if parts else "내용을 가져올 수 없습니다."
 
     return {**article, "analysis": analysis, "content_preview": content[:300]}
 
@@ -247,7 +223,7 @@ def build_html_email(analyzed_articles: list[dict], date_str: str) -> str:
 
     <!-- 푸터 -->
     <div style="text-align:center;padding:24px;color:#aaa;font-size:12px;">
-      <p style="margin:0;">🤖 Claude AI가 분석한 RSS 뉴스 다이제스트</p>
+      <p style="margin:0;">📡 RSS 뉴스 다이제스트</p>
       <p style="margin:4px 0 0;">자동 생성 · {date_str}</p>
     </div>
 
@@ -287,8 +263,6 @@ def main():
     date_str = datetime.now(timezone.utc).strftime("%Y년 %m월 %d일")
     print(f"\n🚀 RSS 다이제스트 시작 ({date_str})\n")
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
     all_articles = []
     for feed in RSS_FEEDS:
         print(f"📡 피드 수집: {feed['name']}")
@@ -300,8 +274,8 @@ def main():
         print("⚠️  수집된 기사가 없습니다. 종료합니다.")
         return
 
-    print(f"\n🧠 총 {len(all_articles)}개 기사 분석 시작...\n")
-    analyzed = [analyze_article(client, art) for art in all_articles]
+    print(f"\n📄 총 {len(all_articles)}개 기사 처리 시작...\n")
+    analyzed = [analyze_article(art) for art in all_articles]
 
     html = build_html_email(analyzed, date_str)
 
