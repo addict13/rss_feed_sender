@@ -22,8 +22,9 @@ from urllib.parse import urljoin
 
 RSS_FEEDS = [
     # 원하는 RSS 피드 URL을 여기에 추가하세요
-    {"name": "Hacker News", "url": "https://news.ycombinator.com/rss"},
-    {"name": "TechCrunch",  "url": "https://techcrunch.com/feed/"},
+    {"name": "Hani news", "url": "http://www.hani.co.kr/rss/culture/"},
+    #{"name": "Hacker News", "url": "https://news.ycombinator.com/rss"},
+    #{"name": "TechCrunch",  "url": "https://techcrunch.com/feed/"},
     # {"name": "내 피드",   "url": "https://example.com/rss"},
 ]
 
